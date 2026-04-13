@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import sys
 
 
 def _load_lab_ui_module():
@@ -8,6 +9,9 @@ def _load_lab_ui_module():
 
     if not lab_ui_path.exists():
         raise FileNotFoundError(f"Cannot find lab UI app at: {lab_ui_path}")
+
+    # Ensure internal imports in day08/lab/ui_app.py resolve correctly.
+    sys.path.insert(0, str(lab_ui_path.parent))
 
     spec = spec_from_file_location("lab_ui_app", lab_ui_path)
     if spec is None or spec.loader is None:
