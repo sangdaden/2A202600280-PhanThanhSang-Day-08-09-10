@@ -42,6 +42,70 @@ def _normalize_tokens(text: str) -> List[str]:
     return re.findall(r"[\w-]+", text.lower())
 
 
+VI_STOPWORDS = {
+    "la", "là", "lam", "làm", "the", "thế", "nao", "nào", "de", "để",
+    "theo", "doi", "dõi", "gi", "gì", "va", "và", "cua", "của", "cho",
+    "trong", "ngoai", "ngoài", "tai", "tại", "tu", "từ", "den", "đến",
+    "voi", "với", "mot", "một", "nhung", "nhưng", "co", "có", "khong", "không",
+    "toi", "tôi", "ban", "bạn", "ve", "về", "khi", "neu", "nếu",
+}
+
+
+def _content_tokens(text: str) -> List[str]:
+    tokens = _normalize_tokens(text)
+    return [t for t in tokens if (len(t) > 2 and t not in VI_STOPWORDS)]
+
+
+def _is_abstain_answer(answer: str) -> bool:
+    text = (answer or "").strip().lower()
+    abstain_markers = [
+        "tôi không biết",
+        "không biết",
+        "không đủ dữ liệu",
+        "i don't know",
+        "do not know",
+        "insufficient",
+    ]
+    return any(marker in text for marker in abstain_markers)
+
+
+def _build_grounded_fallback_answer(query: str, chunks: List[Dict[str, Any]]) -> Optional[str]:
+    if not chunks:
+        return None
+
+    query_tokens = set(_content_tokens(query))
+    best = None
+    best_overlap = -1
+
+    for idx, chunk in enumerate(chunks, 1):
+        text = chunk.get("text", "")
+        overlap = len(query_tokens & set(_content_tokens(text)))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best = (idx, chunk)
+
+    if best is None or best_overlap <= 0:
+        return None
+
+    idx, chunk = best
+    meta = chunk.get("metadata", {})
+    section = meta.get("section", "")
+    source = meta.get("source", "tài liệu")
+    lines = [ln.strip(" -\t") for ln in (chunk.get("text", "") or "").splitlines() if ln.strip()]
+    quote = lines[0] if lines else ""
+
+    for line in lines:
+        if len(query_tokens & set(_content_tokens(line))) > 0:
+            quote = line
+            break
+
+    section_note = f" ({section})" if section else ""
+    return (
+        f"Theo {source}{section_note}, thông tin gần nhất là: {quote} [{idx}]. "
+        f"Nếu bạn muốn theo dõi SLA mới, hãy theo dõi mục lịch sử phiên bản/cập nhật của tài liệu này."
+    )
+
+
 def _doc_key(item: Dict[str, Any]) -> str:
     meta = item.get("metadata", {})
     source = meta.get("source", "")
@@ -435,7 +499,9 @@ def build_grounded_prompt(query: str, context_block: str) -> str:
     - Điều chỉnh tone phù hợp với use case (CS helpdesk, IT support)
     """
     prompt = f"""Answer only from the retrieved context below.
-If the context is insufficient to answer the question, say you do not know and do not make up information.
+If there is no relevant information at all, say you do not know and do not make up information.
+If the context is partially relevant (related but not exactly matching the wording), provide the closest grounded answer and clearly state the limitation.
+Prefer a helpful grounded summary over a hard refusal when at least one relevant snippet exists.
 Cite the source field (in brackets like [1]) when possible.
 Keep your answer short, clear, and factual.
 Respond in the same language as the question.
@@ -512,9 +578,12 @@ def suggest_followups(question: str, answer: str, n: int = 3) -> list[str]:
     prompt = (
         f"Câu hỏi người dùng: {question}\n"
         f"Câu trả lời: {answer}\n\n"
-        f"Hãy đề xuất đúng {n} câu hỏi tiếp theo ngắn gọn (<15 từ) mà người dùng có thể muốn hỏi tiếp, "
-        f"liên quan trực tiếp đến nội dung câu trả lời trên. "
-        f"Chỉ trả về danh sách, mỗi câu hỏi trên một dòng, không đánh số, không giải thích thêm."
+        "Hãy đề xuất đúng 3 câu hỏi tiếp theo, mỗi câu <15 từ, theo format bắt buộc sau:\n"
+        "- Câu 1: liên quan trực tiếp đến câu trả lời vừa rồi.\n"
+        "- Câu 2: tiếp tục đào sâu cùng chủ đề đó.\n"
+        "- Câu 3: chuyển sang chủ đề khác (không trùng chủ đề câu 1-2) nhưng vẫn hợp ngữ cảnh tài liệu nội bộ.\n"
+        "Tránh lặp ý, tránh hỏi lại y nguyên câu cũ. "
+        "Chỉ trả về 3 dòng câu hỏi, không đánh số, không thêm giải thích."
     )
     try:
         raw = call_llm(prompt)
@@ -596,11 +665,22 @@ def rag_answer(
             "config": config,
         }
 
-    # --- Bước 2: Rerank (optional) ---
+    # --- Bước 2: Rerank/select ---
     if use_rerank:
         candidates = rerank(query, candidates, top_k=top_k_select)
     else:
-        candidates = candidates[:top_k_select]
+        # Lightweight relevance filter để giảm chunk nhiễu khi không bật rerank.
+        query_tokens = set(_content_tokens(query))
+        scored = []
+        for c in candidates:
+            chunk_tokens = set(_content_tokens(c.get("text", "")))
+            overlap = len(query_tokens & chunk_tokens)
+            scored.append((overlap, c))
+
+        scored.sort(key=lambda x: (x[0], x[1].get("score", 0)), reverse=True)
+        overlapped = [c for overlap, c in scored if overlap > 0]
+        selected = overlapped if overlapped else [c for _, c in scored]
+        candidates = selected[:top_k_select]
 
     if verbose:
         print(f"[RAG] After select: {len(candidates)} chunks")
@@ -614,6 +694,12 @@ def rag_answer(
 
     # --- Bước 4: Generate ---
     answer = call_llm(prompt)
+
+    # Fallback grounded answer nếu model abstain dù context có phần liên quan.
+    if _is_abstain_answer(answer):
+        fallback = _build_grounded_fallback_answer(query, candidates)
+        if fallback:
+            answer = fallback
 
     # --- Bước 5: Extract sources ---
     sources = list({
