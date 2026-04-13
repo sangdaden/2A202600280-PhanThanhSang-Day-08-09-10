@@ -19,6 +19,7 @@ A/B Rule (từ slide):
 
 import json
 import csv
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -49,6 +50,15 @@ VARIANT_CONFIG = {
     "use_rerank": True,           # Hoặc False nếu variant là hybrid không rerank
     "label": "variant_hybrid_rerank",
 }
+
+
+def _normalize_tokens(text: str) -> List[str]:
+    return [t for t in re.findall(r"[\w-]+", (text or "").lower()) if len(t) > 2]
+
+
+def _to_1_5(score_0_1: float) -> int:
+    score_0_1 = max(0.0, min(1.0, score_0_1))
+    return max(1, min(5, round(score_0_1 * 5)))
 
 
 # =============================================================================
@@ -88,11 +98,27 @@ def score_faithfulness(
 
     Trả về dict với: score (1-5) và notes (lý do)
     """
-    # TODO Sprint 4: Implement scoring
-    # Tạm thời trả về None (yêu cầu chấm thủ công)
+    lower_answer = (answer or "").lower()
+    if not answer or answer.startswith("ERROR:") or answer == "PIPELINE_NOT_IMPLEMENTED":
+        return {"score": 1, "notes": "Pipeline lỗi hoặc chưa chạy được"}
+
+    abstain_markers = ["không đủ dữ liệu", "không biết", "insufficient", "do not know"]
+    if any(m in lower_answer for m in abstain_markers):
+        if not chunks_used:
+            return {"score": 5, "notes": "Abstain hợp lý khi không có context"}
+        return {"score": 4, "notes": "Abstain dù có context; cần kiểm tra retriever"}
+
+    context = " ".join([c.get("text", "") for c in chunks_used]).lower()
+    ans_tokens = _normalize_tokens(answer)
+    if not ans_tokens:
+        return {"score": 1, "notes": "Answer rỗng hoặc không parse được token"}
+
+    covered = sum(1 for t in ans_tokens if t in context)
+    ratio = covered / len(ans_tokens)
+    score = _to_1_5(ratio)
     return {
-        "score": None,
-        "notes": "TODO: Chấm thủ công hoặc implement LLM-as-Judge",
+        "score": score,
+        "notes": f"Token grounded ratio={ratio:.2f} ({covered}/{len(ans_tokens)})",
     }
 
 
@@ -113,9 +139,27 @@ def score_answer_relevance(
 
     TODO Sprint 4: Implement tương tự score_faithfulness
     """
+    if not answer or answer.startswith("ERROR:") or answer == "PIPELINE_NOT_IMPLEMENTED":
+        return {"score": 1, "notes": "Pipeline lỗi hoặc chưa có answer"}
+
+    q_tokens = set(_normalize_tokens(query))
+    a_tokens = set(_normalize_tokens(answer))
+
+    if not q_tokens or not a_tokens:
+        return {"score": 1, "notes": "Không đủ token để so sánh relevance"}
+
+    overlap = len(q_tokens & a_tokens) / len(q_tokens)
+    lower_answer = answer.lower()
+    if "không đủ dữ liệu" in lower_answer or "không biết" in lower_answer:
+        # Abstain có thể hợp lý, nhưng relevance không nên tối đa.
+        return {
+            "score": max(2, _to_1_5(overlap * 0.7)),
+            "notes": f"Abstain answer, overlap={overlap:.2f}",
+        }
+
     return {
-        "score": None,
-        "notes": "TODO: Implement score_answer_relevance",
+        "score": _to_1_5(overlap),
+        "notes": f"Query-answer token overlap={overlap:.2f}",
     }
 
 
@@ -166,7 +210,7 @@ def score_context_recall(
     recall = found / len(expected_sources) if expected_sources else 0
 
     return {
-        "score": round(recall * 5),  # Convert to 1-5 scale
+        "score": max(1, round(recall * 5)),  # Convert to 1-5 scale
         "recall": recall,
         "found": found,
         "missing": missing,
@@ -198,9 +242,25 @@ def score_completeness(
          Rate completeness 1-5. Are all key points covered?
          Output: {'score': int, 'missing_points': [str]}"
     """
+    if not expected_answer:
+        return {
+            "score": None,
+            "notes": "Không có expected_answer để chấm completeness",
+        }
+
+    if not answer or answer.startswith("ERROR:") or answer == "PIPELINE_NOT_IMPLEMENTED":
+        return {"score": 1, "notes": "Pipeline lỗi hoặc chưa có answer"}
+
+    expected_tokens = set(_normalize_tokens(expected_answer))
+    answer_tokens = set(_normalize_tokens(answer))
+    if not expected_tokens:
+        return {"score": None, "notes": "Expected answer không có token hữu ích"}
+
+    covered = len(expected_tokens & answer_tokens)
+    ratio = covered / len(expected_tokens)
     return {
-        "score": None,
-        "notes": "TODO: Implement score_completeness (so sánh với expected_answer)",
+        "score": _to_1_5(ratio),
+        "notes": f"Covered expected key tokens={covered}/{len(expected_tokens)} ({ratio:.2f})",
     }
 
 
@@ -308,7 +368,11 @@ def run_scorecard(
     for metric in ["faithfulness", "relevance", "context_recall", "completeness"]:
         scores = [r[metric] for r in results if r[metric] is not None]
         avg = sum(scores) / len(scores) if scores else None
-        print(f"\nAverage {metric}: {avg:.2f}" if avg else f"\nAverage {metric}: N/A (chưa chấm)")
+        print(
+            f"\nAverage {metric}: {avg:.2f}"
+            if avg is not None
+            else f"\nAverage {metric}: N/A (chưa chấm)"
+        )
 
     return results
 
@@ -354,11 +418,11 @@ def compare_ab(
 
         b_avg = sum(b_scores) / len(b_scores) if b_scores else None
         v_avg = sum(v_scores) / len(v_scores) if v_scores else None
-        delta = (v_avg - b_avg) if (b_avg and v_avg) else None
+        delta = (v_avg - b_avg) if (b_avg is not None and v_avg is not None) else None
 
-        b_str = f"{b_avg:.2f}" if b_avg else "N/A"
-        v_str = f"{v_avg:.2f}" if v_avg else "N/A"
-        d_str = f"{delta:+.2f}" if delta else "N/A"
+        b_str = f"{b_avg:.2f}" if b_avg is not None else "N/A"
+        v_str = f"{v_avg:.2f}" if v_avg is not None else "N/A"
+        d_str = f"{delta:+.2f}" if delta is not None else "N/A"
 
         print(f"{metric:<20} {b_str:>10} {v_str:>10} {d_str:>8}")
 
@@ -506,10 +570,8 @@ if __name__ == "__main__":
     #         output_csv="ab_comparison.csv"
     #     )
 
-    print("\n\nViệc cần làm Sprint 4:")
-    print("  1. Hoàn thành Sprint 2 + 3 trước")
-    print("  2. Chấm điểm thủ công hoặc implement LLM-as-Judge trong score_* functions")
-    print("  3. Chạy run_scorecard(BASELINE_CONFIG)")
-    print("  4. Chạy run_scorecard(VARIANT_CONFIG)")
-    print("  5. Gọi compare_ab() để thấy delta")
-    print("  6. Cập nhật docs/tuning-log.md với kết quả và nhận xét")
+    print("\n\nSprint 4 runner đã sẵn sàng.")
+    print("Gợi ý bước tiếp theo:")
+    print("  1. Chạy build_index() trong index.py để tạo collection rag_lab")
+    print("  2. Chạy baseline + variant và gọi compare_ab()")
+    print("  3. Cập nhật docs/tuning-log.md với nhận xét theo từng câu hỏi")

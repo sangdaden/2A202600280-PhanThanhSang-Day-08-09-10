@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scorecard Baseline</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --ink: #1d2a33;
+      --muted: #5f6b73;
+      --line: #d8cfc3;
+      --accent: #0f766e;
+      --accent-soft: #d8f3ef;
+      --warn: #b45309;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, #efe6d6 0, transparent 32%),
+        linear-gradient(180deg, #f7f2e9 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 18px 50px rgba(29, 42, 51, 0.08);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.05;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .card {
+      background: #fcfaf5;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .card .label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .card .value {
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .section {
+      margin-top: 24px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: 0 18px 50px rgba(29, 42, 51, 0.05);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .note {
+      color: var(--muted);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #eef6f5;
+      color: var(--accent);
+      font-weight: 700;
+      min-width: 34px;
+      text-align: center;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    @media (max-width: 720px) {
+      .page { padding: 18px 12px 36px; }
+      .hero, .section { padding: 16px; border-radius: 16px; }
+      table { font-size: 13px; }
+      th, td { padding: 10px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="eyebrow">RAG Evaluation UI</div>
+      <h1>Scorecard: baseline_dense</h1>
+      <p class="sub">Generated: 2026-04-13 12:56</p>
+      <div class="cards">
+        <div class="card"><div class="label">Faithfulness</div><div class="value">4.50/5</div></div>
+        <div class="card"><div class="label">Relevance</div><div class="value">3.70/5</div></div>
+        <div class="card"><div class="label">Context Recall</div><div class="value">5.00/5</div></div>
+        <div class="card"><div class="label">Completeness</div><div class="value">3.10/5</div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Per-Question Results</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>Faithful</th>
+            <th>Relevant</th>
+            <th>Recall</th>
+            <th>Complete</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>q01</td><td>SLA</td><td><span class="pill">5</span></td><td><span class="pill">2</span></td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td class="note">Token grounded ratio=1.00 (18/18)</td></tr>
+          <tr><td>q02</td><td>Refund</td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td><span class="pill">5</span></td><td><span class="pill">5</span></td><td class="note">Token grounded ratio=0.94 (17/18)</td></tr>
+          <tr><td>q03</td><td>Access Control</td><td><span class="pill">4</span></td><td><span class="pill">4</span></td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td class="note">Token grounded ratio=0.82 (9/11)</td></tr>
+          <tr><td>q04</td><td>Refund</td><td><span class="pill">5</span></td><td><span class="pill">5</span></td><td><span class="pill">5</span></td><td><span class="pill">2</span></td><td class="note">Token grounded ratio=0.95 (18/19)</td></tr>
+          <tr><td>q05</td><td>IT Helpdesk</td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td><span class="pill">5</span></td><td><span class="pill">5</span></td><td class="note">Token grounded ratio=1.00 (18/18)</td></tr>
+          <tr><td>q06</td><td>SLA</td><td><span class="pill">4</span></td><td><span class="pill">3</span></td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td class="note">Token grounded ratio=0.85 (51/60)</td></tr>
+          <tr><td>q07</td><td>Access Control</td><td><span class="pill">5</span></td><td><span class="pill">4</span></td><td><span class="pill">5</span></td><td><span class="pill">1</span></td><td class="note">Token grounded ratio=0.93 (27/29)</td></tr>
+          <tr><td>q08</td><td>HR Policy</td><td><span class="pill">4</span></td><td><span class="pill">4</span></td><td><span class="pill">5</span></td><td><span class="pill">2</span></td><td class="note">Token grounded ratio=0.82 (14/17)</td></tr>
+          <tr><td>q09</td><td>Insufficient Context</td><td><span class="pill">4</span></td><td><span class="pill">4</span></td><td><span class="warn">None</span></td><td><span class="pill">2</span></td><td class="note">Abstain dù có context; cần kiểm tra retriever</td></tr>
+          <tr><td>q10</td><td>Refund</td><td><span class="pill">4</span></td><td><span class="pill">3</span></td><td><span class="pill">5</span></td><td><span class="pill">2</span></td><td class="note">Abstain dù có context; cần kiểm tra retriever</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

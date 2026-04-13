@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Chat</title>
+  <style>
+    :root {
+      --bg: #f0ebe1;
+      --panel: #fffdf8;
+      --ink: #15232d;
+      --muted: #64717a;
+      --line: #ded4c7;
+      --accent: #0f766e;
+      --accent-soft: #d7f4ee;
+      --accent-strong: #115e59;
+      --shadow: rgba(21, 35, 45, 0.08);
+      --user-bubble: #0f766e;
+      --bot-bubble: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 2px 8px var(--shadow);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: 700; font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 16px; font-weight: 600; }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+    .header-controls {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    select, button { font: inherit; }
+
+    select {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: #fffdfa;
+      color: var(--ink);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .check input { accent-color: var(--accent); }
+
+    .clear-btn {
+      border: 1px solid var(--line);
+      background: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .clear-btn:hover { background: #f5e8e0; color: var(--ink); }
+
+    /* ── Chat window ─────────────────────────────────────────── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .welcome {
+      margin: auto;
+      text-align: center;
+      max-width: 520px;
+    }
+    .welcome .big-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 32px; font-weight: 700;
+      margin: 0 auto 20px;
+    }
+    .welcome h2 { font-size: 22px; margin-bottom: 8px; }
+    .welcome p  { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      text-align: left;
+    }
+
+    .sug-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--ink);
+      text-align: left;
+    }
+    .sug-card:hover { background: var(--accent-soft); border-color: #b4dfd7; }
+
+    /* Row wrapper */
+    .row { display: flex; align-items: flex-end; gap: 8px; }
+    .row.user { flex-direction: row-reverse; }
+    .row.bot  { flex-direction: row; }
+
+    /* Avatar */
+    .avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .row.user .avatar { background: var(--accent); color: white; }
+    .row.bot  .avatar { background: #e4ddd1; color: var(--ink); }
+
+    /* Bubble */
+    .bubble {
+      max-width: min(72%, 640px);
+      padding: 12px 16px;
+      border-radius: 18px;
+      line-height: 1.55;
+      font-size: 15px;
+      word-wrap: break-word;
+    }
+
+    .row.user .bubble {
+      background: var(--user-bubble);
+      color: white;
+      border-bottom-right-radius: 5px;
+    }
+    .row.bot .bubble {
+      background: var(--bot-bubble);
+      color: var(--ink);
+      border-bottom-left-radius: 5px;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+
+    /* Thinking animation */
+    .thinking .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: pulse 1.2s ease-in-out infinite;
+      margin: 0 2px;
+    }
+    .thinking .dot:nth-child(2) { animation-delay: 0.2s; }
+    .thinking .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes pulse {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+      40%            { opacity: 1;    transform: scale(1); }
+    }
+
+    /* Sources */
+    .sources-toggle {
+      margin-top: 8px;
+      background: none;
+      border: 1px solid rgba(21,35,45,0.15);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .sources-toggle:hover { background: var(--accent-soft); }
+
+    .sources-panel {
+      margin-top: 8px;
+      background: #f7f4ef;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 13px;
+      max-width: min(72%, 640px);
+    }
+    .sources-panel[hidden] { display: none; }
+    .sources-panel h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .sources-panel ul { padding-left: 16px; list-style: disc; }
+    .sources-panel li { margin-bottom: 3px; word-break: break-word; }
+
+    .chunk-item { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+    .chunk-item:first-child { margin-top: 0; padding-top: 0; border: none; }
+    .chunk-meta { font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+    .chunk-text { color: var(--muted); line-height: 1.45; }
+
+    .config-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── Follow-up suggestions ───────────────────────────────── */
+    .followup-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-left: 38px;
+      margin-top: 4px;
+    }
+
+    .followup-chip {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 7px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: left;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .followup-chip:hover {
+      background: var(--accent-soft);
+      border-color: #b4dfd7;
+      color: var(--accent-strong);
+    }
+
+    /* ── Input bar ───────────────────────────────────────────── */
+    .input-bar {
+      flex-shrink: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      padding: 12px 20px 16px;
+    }
+
+    .compose { display: flex; gap: 10px; align-items: flex-end; }
+
+    textarea {
+      flex: 1;
+      min-height: 44px;
+      max-height: 140px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 11px 14px;
+      resize: none;
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: #fffdfa;
+      overflow-y: auto;
+      line-height: 1.4;
+    }
+    textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+    .send-btn {
+      width: 44px; height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      color: white;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .send-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .hint { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: right; }
+
+    /* ── Sessions sidebar ────────────────────────────────────── */
+    .app-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .new-session-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      border: 1px dashed var(--accent);
+      background: none;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      color: var(--accent-strong);
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .new-session-btn:hover { background: var(--accent-soft); }
+
+    .session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line) transparent;
+    }
+
+    .session-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 10px;
+      padding: 9px 10px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: none;
+      text-align: left;
+      width: 100%;
+      min-width: 0;
+    }
+    .session-item:hover { background: #f0ebe1; }
+    .session-item.active {
+      background: var(--accent-soft);
+      border-color: #b4dfd7;
+    }
+
+    .session-icon {
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .session-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .session-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--ink);
+    }
+    .session-item.active .session-name { color: var(--accent-strong); font-weight: 600; }
+
+    .session-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .session-del {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      padding: 3px 5px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .session-item:hover .session-del,
+    .session-item.active .session-del { opacity: 1; }
+    .session-del:hover { background: #fde8e8; color: #b91c1c; }
+
+    @media (max-width: 700px) {
+      #sidebar { display: none; }
+    }
+    @media (max-width: 600px) {
+      .suggestion-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">R</div>
+  <div>
+    <h1>RAG Chat</h1>
+    <p>Hỏi đáp tài liệu nội bộ – grounded &amp; cited</p>
+  </div>
+  <div class="header-controls">
+    <select id="retrievalMode" title="Retrieval mode">
+      <option value="hybrid" selected>Hybrid</option>
+      <option value="dense">Dense</option>
+      <option value="sparse">Sparse</option>
+    </select>
+    <label class="check">
+      <input id="useRerank" type="checkbox" /> Rerank
+    </label>
+  </div>
+</header>
+
+<!-- ── App body (chat + sidebar) ───────────────────────────────── -->
+<div class="app-body">
+
+  <!-- Chat area -->
+  <div class="chat-area">
+    <div id="chat">
+      <div class="welcome" id="welcome">
+        <div class="big-logo">R</div>
+        <h2>Chào! Tôi là trợ lý RAG</h2>
+        <p>Tôi có thể trả lời câu hỏi về SLA, chính sách hoàn tiền, kiểm soát truy cập, HR và IT helpdesk — với trích dẫn nguồn từ tài liệu đã index.</p>
+        <div class="suggestion-grid" id="welcomeGrid"></div>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar">
+      <div class="compose">
+        <textarea id="question" rows="1" placeholder="Đặt câu hỏi..."></textarea>
+        <button class="send-btn" id="sendBtn" title="Gửi (Enter)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </button>
+      </div>
+      <p class="hint">Enter để gửi &nbsp;·&nbsp; Shift+Enter xuống dòng</p>
+    </div>
+  </div>
+
+  <!-- Sessions sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Lịch sử hội thoại</div>
+      <button class="new-session-btn" id="newSessionBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Session mới
+      </button>
+    </div>
+    <div class="session-list" id="sessionList"></div>
+  </aside>
+
+</div>
+
+<script>
+  // ── DOM refs ─────────────────────────────────────────────────
+  const chat           = document.getElementById('chat');
+  const textarea       = document.getElementById('question');
+  const sendBtn        = document.getElementById('sendBtn');
+  const modeSelect     = document.getElementById('retrievalMode');
+  const rerankCheck    = document.getElementById('useRerank');
+  const newSessionBtn  = document.getElementById('newSessionBtn');
+  const sessionList    = document.getElementById('sessionList');
+
+  let busy = false;
+  let welcomeEl = document.getElementById('welcome');
+
+  // ── Session state ─────────────────────────────────────────────
+  // Each session: { id, title, msgCount, nodes: [] }
+  // nodes: saved DOM node list (cloned) for restoring
+  let sessions = [];
+  let activeId = null;
+
+  function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  function createSession(title) {
+    const s = { id: genId(), title: title || 'Session mới', msgCount: 0, nodes: [] };
+    sessions.unshift(s);
+    return s;
+  }
+
+  function activeSession() { return sessions.find(s => s.id === activeId); }
+
+  // ── Save / restore chat DOM into session ──────────────────────
+  function saveCurrent() {
+    const s = activeSession();
+    if (!s) return;
+    s.nodes = [...chat.childNodes].map(n => n.cloneNode(true));
+  }
+
+  function restoreSession(id) {
+    saveCurrent();
+    activeId = id;
+    const s = sessions.find(s => s.id === id);
+    if (!s) return;
+
+    chat.innerHTML = '';
+    welcomeEl = null;
+
+    if (s.msgCount === 0) {
+      // show welcome screen
+      const w = buildWelcome();
+      chat.appendChild(w);
+      welcomeEl = w;
+    } else {
+      s.nodes.forEach(n => chat.appendChild(n.cloneNode(true)));
+      // re-bind source toggle events
+      rebindToggles();
+      scrollBottom();
+    }
+
+    renderSidebar();
+    textarea.focus();
+  }
+
+  // After restoring DOM, re-attach toggle listeners to sources-toggle buttons
+  function rebindToggles() {
+    chat.querySelectorAll('.sources-toggle').forEach(toggle => {
+      const panel = toggle.nextElementSibling;
+      if (!panel || !panel.classList.contains('sources-panel')) return;
+      // Extract counts from existing text
+      const match = toggle.textContent.match(/(\d+) nguồn · (\d+) đoạn/);
+      const src = match ? parseInt(match[1]) : 0;
+      const chk = match ? parseInt(match[2]) : 0;
+      toggle.onclick = () => {
+        panel.hidden = !panel.hidden;
+        toggle.textContent = panel.hidden
+          ? `📎 ${src} nguồn · ${chk} đoạn`
+          : '▲ Ẩn nguồn';
+      };
+    });
+  }
+
+  // ── Sidebar render ────────────────────────────────────────────
+  function renderSidebar() {
+    sessionList.innerHTML = '';
+    sessions.forEach(s => {
+      const item = document.createElement('button');
+      item.className = 'session-item' + (s.id === activeId ? ' active' : '');
+
+      const icon = document.createElement('span');
+      icon.className = 'session-icon';
+      icon.textContent = '💬';
+
+      const info = document.createElement('div');
+      info.className = 'session-info';
+
+      const name = document.createElement('div');
+      name.className = 'session-name';
+      name.textContent = s.title;
+
+      const meta = document.createElement('div');
+      meta.className = 'session-meta';
+      meta.textContent = s.msgCount > 0 ? `${s.msgCount} tin nhắn` : 'Chưa có tin nhắn';
+
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      const del = document.createElement('button');
+      del.className = 'session-del';
+      del.title = 'Xoá session';
+      del.textContent = '×';
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSession(s.id);
+      });
+
+      item.appendChild(icon);
+      item.appendChild(info);
+      item.appendChild(del);
+      item.addEventListener('click', () => { if (s.id !== activeId) restoreSession(s.id); });
+      sessionList.appendChild(item);
+    });
+  }
+
+  function deleteSession(id) {
+    const idx = sessions.findIndex(s => s.id === id);
+    if (idx === -1) return;
+    sessions.splice(idx, 1);
+
+    if (sessions.length === 0) {
+      // create a fresh one
+      const s = createSession('Session mới');
+      activeId = s.id;
+      loadWelcome();
+      renderSidebar();
+    } else if (id === activeId) {
+      restoreSession(sessions[0].id);
+    } else {
+      renderSidebar();
+    }
+  }
+
+  // ── Welcome screen ────────────────────────────────────────────
+  function buildWelcome() {
+    const w = document.createElement('div');
+    w.className = 'welcome';
+    w.id = 'welcome';
+    w.innerHTML = `
+      <div class="big-logo">R</div>
+      <h2>Chào! Tôi là trợ lý RAG</h2>
+      <p>Tôi có thể trả lời câu hỏi về SLA, chính sách hoàn tiền, kiểm soát truy cập, HR và IT helpdesk — với trích dẫn nguồn từ tài liệu đã index.</p>
+      <div class="suggestion-grid" id="welcomeGrid"></div>
+    `;
+    // bind sug-cards
+    const grid = w.querySelector('#welcomeGrid');
+    if (grid && window._cachedSuggestions) {
+      window._cachedSuggestions.forEach(q => {
+        const card = document.createElement('button');
+        card.className = 'sug-card';
+        card.textContent = q;
+        card.addEventListener('click', () => { textarea.value = q; textarea.dispatchEvent(new Event('input')); send(); });
+        grid.appendChild(card);
+      });
+    }
+    return w;
+  }
+
+  function loadWelcome() {
+    chat.innerHTML = '';
+    const w = buildWelcome();
+    chat.appendChild(w);
+    welcomeEl = w;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+  (function init() {
+    const s = createSession('Session mới');
+    activeId = s.id;
+    renderSidebar();
+  })();
+
+  newSessionBtn.addEventListener('click', () => {
+    saveCurrent();
+    const s = createSession('Session mới');
+    activeId = s.id;
+    loadWelcome();
+    renderSidebar();
+    textarea.focus();
+  });
+
+  // ── auto-resize textarea ──────────────────────────────────────
+  textarea.addEventListener('input', () => {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+  });
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) send(); }
+  });
+
+  sendBtn.addEventListener('click', () => { if (!busy) send(); });
+
+  // ── load suggestions ──────────────────────────────────────────
+  async function loadSuggestions() {
+    try {
+      const res  = await fetch('/api/suggestions');
+      const data = await res.json();
+      const questions = data.questions || [];
+      window._cachedSuggestions = questions;
+
+      // cards in welcome screen
+      const grid = document.getElementById('welcomeGrid');
+      if (grid) {
+        grid.innerHTML = '';
+        questions.forEach((q) => {
+          const card = document.createElement('button');
+          card.className = 'sug-card';
+          card.textContent = q;
+          card.addEventListener('click', () => {
+            textarea.value = q;
+            textarea.dispatchEvent(new Event('input'));
+            send();
+          });
+          grid.appendChild(card);
+        });
+      }
+    } catch (_) {}
+  }
+
+  // ── send ──────────────────────────────────────────────────────
+  async function send() {
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    const s = activeSession();
+
+    // auto-title session from first message
+    if (s && s.msgCount === 0) {
+      s.title = text.length > 32 ? text.slice(0, 30) + '…' : text;
+    }
+
+    // hide welcome screen on first message
+    if (welcomeEl && welcomeEl.parentNode) {
+      welcomeEl.remove();
+      welcomeEl = null;
+    }
+
+    // xoá các gợi ý cũ còn hiển thị
+    chat.querySelectorAll('.followup-row').forEach(el => el.remove());
+
+    appendUserBubble(text);
+    textarea.value = '';
+    textarea.style.height = 'auto';
+
+    const thinkRow = appendThinking();
+    setBusy(true);
+
+    try {
+      const res  = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: text,
+          retrieval_mode: modeSelect.value,
+          use_rerank: rerankCheck.checked,
+        }),
+      });
+      const data = await res.json();
+      thinkRow.remove();
+
+      if (!res.ok) throw new Error(data.error || 'Lỗi không xác định');
+      appendBotMessage(data);
+
+      if (s) { s.msgCount += 2; }
+    } catch (err) {
+      thinkRow.remove();
+      appendErrorBubble('⚠ ' + err.message);
+      if (s) { s.msgCount += 1; }
+    } finally {
+      setBusy(false);
+      renderSidebar();
+    }
+  }
+
+  // ── helpers ───────────────────────────────────────────────────
+  function setBusy(flag) {
+    busy = flag;
+    sendBtn.disabled = flag;
+  }
+
+  function scrollBottom() {
+    chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+  }
+
+  function makeRow(side) {
+    const row = document.createElement('div');
+    row.className = `row ${side}`;
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    av.textContent = side === 'user' ? 'B' : 'R';
+    row.appendChild(av);
+    return row;
+  }
+
+  function appendUserBubble(text) {
+    const row    = makeRow('user');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    scrollBottom();
+  }
+
+  function appendErrorBubble(text) {
+    const row    = makeRow('bot');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.style.background = '#fff0f0';
+    bubble.style.color = '#b91c1c';
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    scrollBottom();
+  }
+
+  function appendThinking() {
+    const row    = makeRow('bot');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble thinking';
+    bubble.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    row.appendChild(bubble);
+    chat.appendChild(row);
+    scrollBottom();
+    return row;
+  }
+
+  function appendBotMessage(data) {
+    const row    = makeRow('bot');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.style.whiteSpace = 'pre-wrap';
+    bubble.textContent = data.answer || '(Không có câu trả lời)';
+
+    if (data.config) {
+      const badge = document.createElement('span');
+      badge.className = 'config-badge';
+      const rr = data.config.rerank ? ' · rerank' : '';
+      badge.textContent = `${data.config.retrieval_mode || modeSelect.value}${rr}`;
+      bubble.appendChild(document.createElement('br'));
+      bubble.appendChild(badge);
+    }
+    row.appendChild(bubble);
+    chat.appendChild(row);
+
+    const sources = data.sources     || [];
+    const chunks  = data.chunks_used || [];
+    if (sources.length || chunks.length) {
+      const srcRow = document.createElement('div');
+      srcRow.style.cssText = 'display:flex;flex-direction:column;padding-left:38px;gap:4px;';
+
+      const toggle = document.createElement('button');
+      toggle.className = 'sources-toggle';
+      toggle.textContent = `📎 ${sources.length} nguồn · ${chunks.length} đoạn`;
+
+      const panel = document.createElement('div');
+      panel.className = 'sources-panel';
+      panel.hidden = true;
+
+      if (sources.length) {
+        const h = document.createElement('h4'); h.textContent = 'Nguồn trích dẫn';
+        const ul = document.createElement('ul');
+        sources.forEach((s) => { const li = document.createElement('li'); li.textContent = s; ul.appendChild(li); });
+        panel.appendChild(h);
+        panel.appendChild(ul);
+      }
+
+      if (chunks.length) {
+        const h = document.createElement('h4');
+        h.textContent = 'Đoạn văn bản đã dùng';
+        if (sources.length) h.style.marginTop = '12px';
+        panel.appendChild(h);
+        chunks.forEach((chunk, i) => {
+          const meta = chunk.metadata || {};
+          const div  = document.createElement('div');
+          div.className = 'chunk-item';
+          div.innerHTML = `<div class="chunk-meta">[${i+1}] ${meta.source || 'unknown'} — ${meta.section || 'N/A'}</div>`
+                        + `<div class="chunk-text">${(chunk.text || '').slice(0, 240)}${(chunk.text||'').length > 240 ? '…' : ''}</div>`;
+          panel.appendChild(div);
+        });
+      }
+
+      toggle.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggle.textContent = panel.hidden
+          ? `📎 ${sources.length} nguồn · ${chunks.length} đoạn`
+          : '▲ Ẩn nguồn';
+      });
+
+      srcRow.appendChild(toggle);
+      srcRow.appendChild(panel);
+      chat.appendChild(srcRow);
+    }
+
+    scrollBottom();
+
+    // ── fetch & render follow-up suggestions ──────────────────
+    const questionText = data.query || '';
+    const answerText   = data.answer || '';
+    if (questionText && answerText) {
+      fetch('/api/followups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: questionText, answer: answerText }),
+      })
+        .then(r => r.json())
+        .then(fdata => {
+          const followups = fdata.followups || [];
+          if (!followups.length) return;
+          const row = document.createElement('div');
+          row.className = 'followup-row';
+          followups.forEach(q => {
+            const chip = document.createElement('button');
+            chip.className = 'followup-chip';
+            chip.textContent = q;
+            chip.addEventListener('click', () => {
+              // xoá toàn bộ gợi ý trước khi gửi
+              row.remove();
+              textarea.value = q;
+              textarea.dispatchEvent(new Event('input'));
+              send();
+            });
+            row.appendChild(chip);
+          });
+          chat.appendChild(row);
+          scrollBottom();
+        })
+        .catch(() => {});
+    }
+  }
+
+  loadSuggestions();
+</script>
+</body>
+</html>
