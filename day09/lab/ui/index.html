@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 09 — Multi-Agent Orchestration Demo</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    color: #fff;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 8px #0004;
+  }
+  .header-icon { font-size: 2rem; }
+  .header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.3px; }
+  .header p  { font-size: 0.82rem; opacity: 0.75; margin-top: 2px; }
+
+  /* ── Layout ── */
+  .page { max-width: 980px; margin: 0 auto; padding: 28px 20px 60px; }
+
+  /* ── Architecture card ── */
+  .arch-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 4px #0001;
+    border-left: 4px solid #0f3460;
+  }
+  .arch-card h2 { font-size: 0.95rem; font-weight: 700; color: #0f3460; margin-bottom: 14px; }
+  .arch-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 0.82rem;
+  }
+  .arch-node {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .arch-node.supervisor { background: #0f3460; color: #fff; }
+  .arch-node.retrieval  { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+  .arch-node.policy     { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+  .arch-node.human      { background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
+  .arch-node.synthesis  { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+  .arch-node.mcp        { background: #f3e5f5; color: #6a1b9a; border: 1px solid #ce93d8; }
+  .arch-arrow { color: #999; font-size: 1.1rem; }
+  .arch-branch { display: flex; flex-direction: column; gap: 4px; }
+
+  /* ── MCP tools panel ── */
+  .mcp-tools-list {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+  }
+  .mcp-tool-tag {
+    background: #f3e5f5; color: #6a1b9a;
+    border: 1px solid #ce93d8;
+    border-radius: 14px; padding: 3px 10px;
+    font-size: 0.78rem; font-weight: 600;
+  }
+
+  /* ── Suggestions ── */
+  .suggestions { margin-bottom: 20px; }
+  .suggestions h3 { font-size: 0.85rem; font-weight: 600; color: #555; margin-bottom: 8px; }
+  .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    background: #fff;
+    border: 1px solid #c5cae9;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all .15s;
+    color: #3949ab;
+  }
+  .chip:hover { background: #3949ab; color: #fff; border-color: #3949ab; }
+
+  /* ── Input card ── */
+  .input-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 4px #0001;
+    margin-bottom: 22px;
+  }
+  .input-card label { font-size: 0.9rem; font-weight: 600; display: block; margin-bottom: 8px; }
+  .input-row { display: flex; gap: 10px; }
+  .input-row textarea {
+    flex: 1;
+    border: 1.5px solid #c5cae9;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+    transition: border-color .15s;
+  }
+  .input-row textarea:focus { outline: none; border-color: #3949ab; }
+  .btn-ask {
+    background: #0f3460;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+    min-width: 110px;
+  }
+  .btn-ask:hover:not(:disabled) { background: #1565c0; }
+  .btn-ask:disabled { background: #aaa; cursor: not-allowed; }
+
+  /* ── Result section ── */
+  #result { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 22px;
+    box-shadow: 0 1px 4px #0001;
+  }
+  .card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Routing card ── */
+  .card-routing { border-left: 4px solid #3949ab; }
+  .card-routing .card-title { color: #3949ab; }
+  .routing-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .route-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  .route-badge.retrieval_worker  { background: #e3f2fd; color: #1565c0; }
+  .route-badge.policy_tool_worker{ background: #fff3e0; color: #e65100; }
+  .route-badge.human_review      { background: #fce4ec; color: #880e4f; }
+  .route-badge.unknown           { background: #eceff1; color: #546e7a; }
+  .route-reason {
+    font-size: 0.84rem;
+    color: #555;
+    font-style: italic;
+    flex: 1;
+  }
+  .risk-badge {
+    background: #ffebee;
+    color: #c62828;
+    border-radius: 14px;
+    padding: 2px 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+  .hitl-badge {
+    background: #f3e5f5;
+    color: #6a1b9a;
+    border-radius: 14px;
+    padding: 2px 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+  }
+
+  /* ── Pipeline card ── */
+  .card-pipeline { border-left: 4px solid #00897b; }
+  .card-pipeline .card-title { color: #00897b; }
+  .pipeline-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pipeline-node {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .pipeline-node.retrieval_worker   { background: #e3f2fd; color: #1565c0; }
+  .pipeline-node.policy_tool_worker { background: #fff3e0; color: #e65100; }
+  .pipeline-node.synthesis_worker   { background: #e8f5e9; color: #1b5e20; }
+  .pipeline-node.human_review       { background: #fce4ec; color: #880e4f; }
+  .pipeline-arrow { color: #bbb; font-size: 1.1rem; }
+
+  /* ── Answer card ── */
+  .card-answer { border-left: 4px solid #2e7d32; }
+  .card-answer .card-title { color: #2e7d32; }
+  .answer-text {
+    font-size: 0.95rem;
+    line-height: 1.65;
+    color: #222;
+    white-space: pre-wrap;
+  }
+  .conf-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .conf-label { font-size: 0.78rem; color: #777; white-space: nowrap; }
+  .conf-bar-bg { flex: 1; background: #e0e0e0; border-radius: 6px; height: 8px; overflow: hidden; }
+  .conf-bar    { height: 100%; border-radius: 6px; transition: width .5s; }
+  .conf-value  { font-size: 0.82rem; font-weight: 700; min-width: 36px; text-align: right; }
+
+  /* ── Sources card ── */
+  .card-sources { border-left: 4px solid #7986cb; }
+  .card-sources .card-title { color: #3949ab; }
+  .sources-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .source-tag {
+    background: #e8eaf6;
+    color: #283593;
+    border-radius: 14px;
+    padding: 3px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+
+  /* ── MCP card ── */
+  .card-mcp { border-left: 4px solid #7b1fa2; }
+  .card-mcp .card-title { color: #7b1fa2; }
+  .mcp-call {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f3e5f5;
+    margin-bottom: 6px;
+    font-size: 0.83rem;
+  }
+  .mcp-call-name { font-weight: 700; color: #6a1b9a; }
+  .mcp-call-status { border-radius: 10px; padding: 1px 8px; font-size: 0.73rem; font-weight: 700; }
+  .mcp-call-status.ok  { background: #e8f5e9; color: #2e7d32; }
+  .mcp-call-status.err { background: #ffebee; color: #c62828; }
+  .mcp-call-ts { color: #999; font-size: 0.75rem; margin-left: auto; }
+
+  /* ── Trace card ── */
+  .card-trace { border-left: 4px solid #546e7a; }
+  .card-trace .card-title { color: #546e7a; cursor: pointer; user-select: none; }
+  .card-title .toggle-icon { margin-left: auto; font-size: 0.85rem; }
+  .trace-body { margin-top: 10px; }
+  .trace-step {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+  .trace-step:last-child { border-bottom: none; }
+  .trace-agent {
+    min-width: 160px;
+    font-weight: 700;
+    color: #0f3460;
+    white-space: nowrap;
+  }
+  .trace-agent.policy_tool_worker { color: #e65100; }
+  .trace-agent.retrieval_worker   { color: #1565c0; }
+  .trace-agent.synthesis_worker   { color: #2e7d32; }
+  .trace-agent.supervisor         { color: #6a1b9a; }
+  .trace-action { color: #444; }
+
+  /* ── Latency badge ── */
+  .latency-badge {
+    display: inline-block;
+    background: #eceff1;
+    color: #546e7a;
+    border-radius: 14px;
+    padding: 3px 12px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* ── Loading ── */
+  .loading { display: flex; align-items: center; gap: 10px; color: #777; font-size: 0.9rem; padding: 20px; }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 3px solid #e0e0e0;
+    border-top-color: #3949ab;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Error ── */
+  .error-card {
+    background: #ffebee;
+    border-left: 4px solid #c62828;
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: #c62828;
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🤖</div>
+  <div>
+    <h1>Day 09 — Multi-Agent Orchestration Demo</h1>
+    <p>Supervisor-Worker · MCP Tools · Trace &amp; Observability</p>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- Architecture overview -->
+  <div class="arch-card">
+    <h2>🗺 Kiến trúc hệ thống</h2>
+    <div class="arch-flow">
+      <span class="arch-node supervisor">Supervisor</span>
+      <span class="arch-arrow">→</span>
+      <div class="arch-branch">
+        <span class="arch-node retrieval">retrieval_worker</span>
+        <span class="arch-node policy">policy_tool_worker</span>
+        <span class="arch-node human">human_review</span>
+      </div>
+      <span class="arch-arrow">→</span>
+      <span class="arch-node synthesis">synthesis_worker</span>
+      <span class="arch-arrow">→</span>
+      <span style="font-size:0.82rem;color:#555;">Output</span>
+    </div>
+    <div style="margin-top:12px;">
+      <div style="font-size:0.78rem;color:#888;margin-bottom:6px;">MCP Tools khả dụng:</div>
+      <div class="mcp-tools-list" id="mcp-tools-list">
+        <span class="mcp-tool-tag">đang tải...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggested questions -->
+  <div class="suggestions">
+    <h3>💡 Câu hỏi gợi ý:</h3>
+    <div class="suggestion-chips" id="chips"></div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-card">
+    <label for="question">Nhập câu hỏi:</label>
+    <div class="input-row">
+      <textarea id="question" rows="2"
+        placeholder="VD: Ticket P1 lúc 2am — cần cấp Level 2 cho contractor, quy trình cả hai?"></textarea>
+      <button class="btn-ask" id="btn-ask" type="button">Gửi</button>
+    </div>
+  </div>
+
+  <!-- Result area -->
+  <div id="result"></div>
+
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function confColor(c) {
+  if (c >= 0.7) return '#2e7d32';
+  if (c >= 0.4) return '#f57c00';
+  return '#c62828';
+}
+
+// ── Load MCP tools ────────────────────────────────────────
+async function loadMcpTools() {
+  try {
+    const r = await fetch('/api/tools');
+    const d = await r.json();
+    const el = document.getElementById('mcp-tools-list');
+    if (d.tools && d.tools.length) {
+      el.innerHTML = d.tools.map(t =>
+        `<span class="mcp-tool-tag" title="${escHtml(t.description)}">${escHtml(t.name)}</span>`
+      ).join('');
+    }
+  } catch(e) { /* ignore */ }
+}
+
+// ── Load suggestions ──────────────────────────────────────
+async function loadSuggestions() {
+  try {
+    const r = await fetch('/api/suggestions');
+    const d = await r.json();
+    const el = document.getElementById('chips');
+    (d.questions || []).forEach(q => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = q;
+      chip.onclick = () => {
+        document.getElementById('question').value = q;
+        document.getElementById('question').focus();
+      };
+      el.appendChild(chip);
+    });
+  } catch(e) { /* ignore */ }
+}
+
+// ── Submit ────────────────────────────────────────────────
+document.getElementById('btn-ask').onclick = submitQuestion;
+document.getElementById('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitQuestion();
+});
+
+async function submitQuestion() {
+  const question = document.getElementById('question').value.trim();
+  if (!question) return;
+
+  const btn = document.getElementById('btn-ask');
+  const resultDiv = document.getElementById('result');
+
+  btn.disabled = true;
+  resultDiv.innerHTML = `
+    <div class="loading">
+      <div class="spinner"></div>
+      <span>Đang chạy pipeline...</span>
+    </div>`;
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      resultDiv.innerHTML = `<div class="error-card">❌ ${escHtml(data.error)}</div>`;
+      return;
+    }
+
+    resultDiv.innerHTML = buildResult(data);
+    bindTraceToggle();
+
+  } catch(err) {
+    resultDiv.innerHTML = `<div class="error-card">❌ Lỗi kết nối: ${escHtml(String(err))}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Build result HTML ─────────────────────────────────────
+function buildResult(d) {
+  let html = '';
+
+  // 1. Routing Decision card
+  const routeClass = d.supervisor_route || 'unknown';
+  const routeLabel = {
+    retrieval_worker:   '🔍 retrieval_worker',
+    policy_tool_worker: '📋 policy_tool_worker',
+    human_review:       '👤 human_review',
+  }[d.supervisor_route] || d.supervisor_route || 'unknown';
+
+  let badges = '';
+  if (d.risk_high) badges += `<span class="risk-badge">⚠ RISK HIGH</span> `;
+  if (d.hitl_triggered) badges += `<span class="hitl-badge">🛑 HITL</span> `;
+  if (d.latency_ms != null) badges += `<span class="latency-badge">⏱ ${d.latency_ms} ms</span>`;
+
+  html += `
+  <div class="card card-routing">
+    <div class="card-title">🧭 Supervisor Decision</div>
+    <div class="routing-row">
+      <span class="route-badge ${escHtml(routeClass)}">${escHtml(routeLabel)}</span>
+      <span class="route-reason">${escHtml(d.route_reason || '(no reason)')}</span>
+    </div>
+    ${badges ? `<div style="margin-top:8px;">${badges}</div>` : ''}
+  </div>`;
+
+  // 2. Worker Pipeline card
+  if (d.workers_called && d.workers_called.length) {
+    const nodes = d.workers_called.map((w, i) => {
+      const arrow = i > 0 ? '<span class="pipeline-arrow">→</span>' : '';
+      return `${arrow}<span class="pipeline-node ${escHtml(w)}">${escHtml(w.replace('_worker',''))}</span>`;
+    }).join('');
+    html += `
+  <div class="card card-pipeline">
+    <div class="card-title">⚙ Workers Invoked</div>
+    <div class="pipeline-flow">${nodes}</div>
+  </div>`;
+  }
+
+  // 3. Answer card
+  const conf = d.confidence ?? 0;
+  const confPct = Math.round(conf * 100);
+  const confCol = confColor(conf);
+  const answerText = (d.final_answer || '').trim() || '(Pipeline không có câu trả lời)';
+  html += `
+  <div class="card card-answer">
+    <div class="card-title">💬 Câu trả lời</div>
+    <div class="answer-text">${escHtml(answerText)}</div>
+    <div class="conf-row">
+      <span class="conf-label">Confidence</span>
+      <div class="conf-bar-bg">
+        <div class="conf-bar" style="width:${confPct}%;background:${confCol};"></div>
+      </div>
+      <span class="conf-value" style="color:${confCol};">${confPct}%</span>
+    </div>
+  </div>`;
+
+  // 4. Sources card
+  if (d.sources && d.sources.length) {
+    const tags = [...new Set(d.sources)].map(s =>
+      `<span class="source-tag">📄 ${escHtml(s)}</span>`
+    ).join('');
+    html += `
+  <div class="card card-sources">
+    <div class="card-title">📚 Nguồn tài liệu</div>
+    <div class="sources-list">${tags}</div>
+  </div>`;
+  }
+
+  // 5. MCP Tools card (only if used)
+  if (d.mcp_tools_used && d.mcp_tools_used.length) {
+    const calls = d.mcp_tools_used.map(t => {
+      const statusClass = t.success ? 'ok' : 'err';
+      const statusLabel = t.success ? '✓ OK' : '✗ ERR';
+      const ts = t.timestamp ? t.timestamp.split('T')[1]?.slice(0,8) ?? '' : '';
+      return `
+      <div class="mcp-call">
+        <span class="mcp-call-name">🔌 ${escHtml(t.tool)}</span>
+        <span class="mcp-call-status ${statusClass}">${statusLabel}</span>
+        ${t.error ? `<span style="color:#c62828;font-size:0.78rem;">${escHtml(String(t.error))}</span>` : ''}
+        <span class="mcp-call-ts">${escHtml(ts)}</span>
+      </div>`;
+    }).join('');
+    html += `
+  <div class="card card-mcp">
+    <div class="card-title">🔌 MCP Tools Used</div>
+    ${calls}
+  </div>`;
+  }
+
+  // 6. Trace card (collapsible)
+  if (d.trace && d.trace.length) {
+    const steps = d.trace.map(s => {
+      const agentClass = s.agent ? s.agent.replace(/[\[\] ]/g,'') : '';
+      return `
+      <div class="trace-step">
+        <span class="trace-agent ${escHtml(agentClass)}">[${escHtml(s.agent)}]</span>
+        <span class="trace-action">${escHtml(s.action)}</span>
+      </div>`;
+    }).join('');
+    html += `
+  <div class="card card-trace" id="trace-card">
+    <div class="card-title" id="trace-toggle" style="cursor:pointer;">
+      🔎 Agent Trace
+      <span class="toggle-icon" id="trace-icon">▼ Hiển thị</span>
+    </div>
+    <div class="trace-body" id="trace-body" style="display:none;">${steps}</div>
+  </div>`;
+  }
+
+  return html;
+}
+
+function bindTraceToggle() {
+  const toggle = document.getElementById('trace-toggle');
+  const body   = document.getElementById('trace-body');
+  const icon   = document.getElementById('trace-icon');
+  if (!toggle) return;
+  toggle.onclick = () => {
+    const hidden = body.style.display === 'none';
+    body.style.display = hidden ? 'block' : 'none';
+    icon.textContent   = hidden ? '▲ Ẩn' : '▼ Hiển thị';
+  };
+}
+
+// ── Init ─────────────────────────────────────────────────
+loadMcpTools();
+loadSuggestions();
+</script>
+</body>
+</html>

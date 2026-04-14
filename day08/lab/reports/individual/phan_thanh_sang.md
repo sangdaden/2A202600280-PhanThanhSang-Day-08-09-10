@@ -1,7 +1,7 @@
 # Báo Cáo Cá Nhân - Lab Day 08: RAG Pipeline
 
 **Họ và tên:** Phan Thanh Sang  
-**Vai trò trong nhóm:** Tech Lead / Retrieval Owner  
+**Vai trò trong nhóm:** Phan Thanh Sang / Retrieval Owner  
 **Ngày nộp:** 2026-04-13  
 **Độ dài:** ~650 từ
 
@@ -38,3 +38,29 @@ Khó khăn lớn nhất không phải là viết hàm, mà là thứ tự vận 
 ## 5. Nếu có thêm thời gian, tôi sẽ làm gì? (50-100 từ)
 
 Nếu có thêm 1 giờ, tôi sẽ làm 2 việc cụ thể. Thứ nhất, tôi sẽ bật cross-encoder rerank để lọc top-k cuối, vì eval cho thấy retrieval có lúc đúng source nhưng chunk chưa sát câu hỏi. Thứ hai, tôi sẽ bổ sung LLM-as-judge cho faithfulness và completeness để scorecard giảm tính chủ quan so với heuristic token overlap. Hai cải tiến này sẽ giúp so sánh baseline và variant có cơ sở thuyết phục hơn.
+
+---
+
+## 6. Checklist công việc của Phan Thanh Sang theo file
+
+Để làm rõ phần việc tôi trực tiếp triển khai, tôi tổng hợp theo đúng file như sau:
+
+1. Hoàn thiện preprocess và chunking
+- File: `index.py`
+- Việc làm: triển khai `preprocess_document()`, `chunk_document()`, `_split_by_size()` theo hướng section-first + paragraph-first + overlap.
+
+2. Kết nối embedding và build index
+- File: `index.py`
+- Việc làm: triển khai `get_embedding()` (OpenAI/fallback local), hoàn thiện `build_index()` để upsert vào ChromaDB.
+
+3. Triển khai baseline retrieval + generation
+- File: `rag_answer.py`
+- Việc làm: triển khai `retrieve_dense()`, `build_grounded_prompt()`, `call_llm()` và luồng `rag_answer()` cho baseline.
+
+4. Triển khai variant cho Sprint 3
+- File: `rag_answer.py`
+- Việc làm: thêm `retrieve_sparse()` (BM25), `retrieve_hybrid()` (RRF), `rerank()` (fallback lexical / tùy chọn cross-encoder).
+
+5. Nối pipeline để phục vụ evaluation
+- File: `rag_answer.py`, `eval.py`
+- Việc làm: đảm bảo output của `rag_answer()` tương thích với `run_scorecard()` để chạy baseline/variant end-to-end.

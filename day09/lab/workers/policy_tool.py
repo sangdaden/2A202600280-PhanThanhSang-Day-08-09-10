@@ -107,28 +107,12 @@ def analyze_policy(task: str, chunks: list) -> dict:
             "source": "policy_refund_v4.txt",
         })
 
-    # Determine policy_applies
     policy_applies = len(exceptions_found) == 0
 
-    # Determine which policy version applies (temporal scoping)
-    # TODO: Check nếu đơn hàng trước 01/02/2026 → v3 applies (không có docs, nên flag cho synthesis)
     policy_name = "refund_policy_v4"
     policy_version_note = ""
     if "31/01" in task_lower or "30/01" in task_lower or "trước 01/02" in task_lower:
         policy_version_note = "Đơn hàng đặt trước 01/02/2026 áp dụng chính sách v3 (không có trong tài liệu hiện tại)."
-
-    # TODO Sprint 2: Gọi LLM để phân tích phức tạp hơn
-    # Ví dụ:
-    # from openai import OpenAI
-    # client = OpenAI()
-    # response = client.chat.completions.create(
-    #     model="gpt-4o-mini",
-    #     messages=[
-    #         {"role": "system", "content": "Bạn là policy analyst. Dựa vào context, xác định policy áp dụng và các exceptions."},
-    #         {"role": "user", "content": f"Task: {task}\n\nContext:\n" + "\n".join([c['text'] for c in chunks])}
-    #     ]
-    # )
-    # analysis = response.choices[0].message.content
 
     sources = list({c.get("source", "unknown") for c in chunks if c})
 
@@ -138,7 +122,7 @@ def analyze_policy(task: str, chunks: list) -> dict:
         "exceptions_found": exceptions_found,
         "source": sources,
         "policy_version_note": policy_version_note,
-        "explanation": "Analyzed via rule-based policy check. TODO: upgrade to LLM-based analysis.",
+        "explanation": "Analyzed via rule-based policy check.",
     }
 
 
@@ -224,15 +208,30 @@ def run(state: dict) -> dict:
 if __name__ == "__main__":
     print("=" * 50)
     print("Policy Tool Worker — Standalone Test")
-    print("=" * 50)
+    print("="*50)
+    # Test Flash Sale exception
+    test_state = {"task": "Khách hàng Flash Sale yêu cầu hoàn tiền vì sản phẩm lỗi — được không?", "retrieved_chunks": [{"text": "Flash Sale không được hoàn tiền", "source": "policy_refund_v4.txt"}]}
+    result = run(test_state)
+    print(f"\n▶ Task: {test_state['task']}...")
+    print(f"  policy_applies: {result['policy_result'].get('policy_applies')}")
+    exceptions = result['policy_result'].get('exceptions_found', [])
+    if exceptions:
+        for ex in exceptions:
+            # Nếu ex là dict thì in chi tiết, nếu là str thì in luôn
+            if isinstance(ex, dict):
+                print(f"  exception: {ex.get('type', '')} — {ex.get('rule', '')[:60]}...")
+            else:
+                print(f"  exception: {ex}")
+    # In log: ưu tiên worker_io_log, nếu không có thì lấy phần tử cuối của worker_io_logs
+    if 'worker_io_log' in result:
+        print(f"  log: {result['worker_io_log']}")
+    elif 'worker_io_logs' in result:
+        print(f"  log: {result['worker_io_logs'][-1]}")
+    else:
+        print("  log: [No log found]")
 
+    # Thêm các test case khác
     test_cases = [
-        {
-            "task": "Khách hàng Flash Sale yêu cầu hoàn tiền vì sản phẩm lỗi — được không?",
-            "retrieved_chunks": [
-                {"text": "Ngoại lệ: Đơn hàng Flash Sale không được hoàn tiền.", "source": "policy_refund_v4.txt", "score": 0.9}
-            ],
-        },
         {
             "task": "Khách hàng muốn hoàn tiền license key đã kích hoạt.",
             "retrieved_chunks": [
@@ -252,9 +251,24 @@ if __name__ == "__main__":
         result = run(tc.copy())
         pr = result.get("policy_result", {})
         print(f"  policy_applies: {pr.get('policy_applies')}")
-        if pr.get("exceptions_found"):
-            for ex in pr["exceptions_found"]:
-                print(f"  exception: {ex['type']} — {ex['rule'][:60]}...")
+        exceptions = pr.get('exceptions_found', [])
+        if exceptions:
+            for ex in exceptions:
+                # Nếu ex là dict thì in chi tiết, nếu là str thì in luôn
+                if isinstance(ex, dict):
+                    print(f"  exception: {ex.get('type', '')} — {ex.get('rule', '')[:60]}...")
+                elif isinstance(ex, str):
+                    print(f"  exception: {ex}")
+                else:
+                    print(f"  exception: {str(ex)}")
+        # In log: ưu tiên worker_io_log, nếu không có thì lấy phần tử cuối của worker_io_logs
+        if 'worker_io_log' in result:
+            print(f"  log: {result['worker_io_log']}")
+        elif 'worker_io_logs' in result:
+            print(f"  log: {result['worker_io_logs'][-1]}")
+        else:
+            print("  log: [No log found]")
+        # Đã in exception ở trên, không lặp lại để tránh lỗi TypeError
         print(f"  MCP calls: {len(result.get('mcp_tools_used', []))}")
 
     print("\n✅ policy_tool_worker test done.")

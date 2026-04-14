@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python graph.py)",
+      "Bash(python -c ':*)",
+      "Bash(set PYTHONIOENCODING=utf-8)"
+    ]
+  }
+}

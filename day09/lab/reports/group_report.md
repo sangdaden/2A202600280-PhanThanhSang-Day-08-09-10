@@ -25,57 +25,42 @@
 
 ---
 
-## 1. Kiến trúc nhóm đã xây dựng (150–200 từ)
-
-> Mô tả ngắn gọn hệ thống nhóm: bao nhiêu workers, routing logic hoạt động thế nào,
-> MCP tools nào được tích hợp. Dùng kết quả từ `docs/system_architecture.md`.
+## 1. Kiến trúc nhóm đã xây dựng (Sprint 2)
 
 **Hệ thống tổng quan:**
-
-_________________
+Nhóm đã xây dựng hệ Supervisor-Worker gồm 3 worker chính: retrieval_worker, policy_tool_worker, synthesis_worker. Supervisor chịu trách nhiệm phân tích task và route đến worker phù hợp. Các worker thực hiện domain skill riêng biệt, giao tiếp qua AgentState và tuân thủ contract định nghĩa trong `contracts/worker_contracts.yaml`.
 
 **Routing logic cốt lõi:**
-> Mô tả logic supervisor dùng để quyết định route (keyword matching, LLM classifier, rule-based, v.v.)
-
-_________________
+Supervisor sử dụng keyword-based routing để quyết định chuyển task đến retrieval_worker hoặc policy_tool_worker. Điều này giúp giảm độ trễ và tăng tính minh bạch khi debug trace.
 
 **MCP tools đã tích hợp:**
-> Liệt kê tools đã implement và 1 ví dụ trace có gọi MCP tool.
+- `search_kb`: Được gọi bởi policy_tool_worker khi cần kiểm tra policy hoặc tìm thông tin bổ sung.
+- `get_ticket_info`: Được sử dụng khi cần truy xuất thông tin ticket đặc biệt.
 
-- `search_kb`: ___________________
-- `get_ticket_info`: ___________________
-- ___________________: ___________________
+Ví dụ trace: Khi supervisor nhận task liên quan đến "hoàn tiền", sẽ route sang policy_tool_worker, worker này có thể gọi MCP tool `search_kb` để kiểm tra policy hoàn tiền.
 
 ---
 
-## 2. Quyết định kỹ thuật quan trọng nhất (200–250 từ)
+## 2. Quyết định kỹ thuật quan trọng nhất (Sprint 2)
 
-> Chọn **1 quyết định thiết kế** mà nhóm thảo luận và đánh đổi nhiều nhất.
-> Phải có: (a) vấn đề gặp phải, (b) các phương án cân nhắc, (c) lý do chọn phương án đã chọn.
-
-**Quyết định:** ___________________
+**Quyết định:**
+Nhóm chọn tách rõ 3 worker với contract input/output cụ thể thay vì gộp logic vào một pipeline lớn.
 
 **Bối cảnh vấn đề:**
+Khi pipeline cũ (Day 08) bị quá tải, khó trace lỗi và không thể mở rộng từng phần riêng biệt. Việc tách worker giúp dễ kiểm thử, dễ debug và mỗi thành viên có thể phụ trách một module độc lập.
 
-_________________
+**Các phương án cân nhắc:**
+- Gộp logic vào 1 file lớn (dễ triển khai nhanh nhưng khó bảo trì)
+- Tách thành các worker độc lập (phức tạp hơn nhưng rõ ràng, dễ mở rộng)
 
-**Các phương án đã cân nhắc:**
+**Lý do chọn:**
+- Dễ trace, dễ kiểm thử từng worker
+- Đảm bảo tuân thủ contract, dễ thay thế hoặc nâng cấp từng worker
 
-| Phương án | Ưu điểm | Nhược điểm |
-|-----------|---------|-----------|
-| ___ | ___ | ___ |
-| ___ | ___ | ___ |
-
-**Phương án đã chọn và lý do:**
-
-_________________
-
-**Bằng chứng từ trace/code:**
-> Dẫn chứng cụ thể (VD: route_reason trong trace, đoạn code, v.v.)
-
-```
-[NHÓM ĐIỀN VÀO ĐÂY — ví dụ trace hoặc code snippet]
-```
+**Bằng chứng:**
+- File: `workers/retrieval.py`, `workers/policy_tool.py`, `workers/synthesis.py` đều có docstring mô tả contract rõ ràng
+- File: `contracts/worker_contracts.yaml` định nghĩa input/output cho từng worker
+- Khi chạy pipeline, trace log cho thấy từng worker nhận và trả kết quả đúng contract
 
 ---
 
